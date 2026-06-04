@@ -1,7 +1,7 @@
+#!/usr/bin/env python3
 import os
 from flask import Flask, request
 import sqlite3
-
 app = Flask(__name__)
 
 # "Случайно" закомментированный токен, который найдёт Gitleaks
