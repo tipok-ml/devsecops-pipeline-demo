@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/zricethezav/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+        args: ['--verbose']
+
+  - repo: https://github.com/returntocorp/semgrep
+    rev: v1.39.0
+    hooks:
+      - id: semgrep
+        args:
+          - --config
+          - p/owasp-top-ten
+          - --error
+
+  - repo: local
+    hooks:
+      - id: trivy-fs
+        name: Trivy file system scan
+        entry: trivy fs --exit-code 1 --severity CRITICAL,HIGH .
+        language: system
+        always_run: true
+        pass_filenames: false
