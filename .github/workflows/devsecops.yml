@@ -1,0 +1,121 @@
+name: "DevSecOps Pipeline"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gitleaks:
+    name: Gitleaks - поиск секретов
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout репозитория (полная история)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Запуск Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # необязательно
+        with:
+          args: detect --source . --verbose
+
+      - name: Уведомление в Slack при провале
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "❌ Gitleaks нашёл утёкшие секреты!\nРепозиторий: ${{ github.repository }}\nАвтор: ${{ github.actor }}\nСсылка: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Уведомление в Telegram при провале
+        if: failure()
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="❌ Gitleaks нашёл утёкшие секреты!%0AРепозиторий: ${{ github.repository }}%0AАвтор: ${{ github.actor }}%0AСсылка: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+  trivy:
+    name: Trivy - сканирование уязвимостей
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout репозитория
+        uses: actions/checkout@v4
+
+      - name: Сборка Docker-образа
+        run: docker build -t myapp:latest .
+
+      - name: Сканирование файла зависимостей
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: 'fs'
+          scan-ref: 'app/requirements.txt'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Сканирование Docker-образа
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: 'image'
+          image-ref: 'myapp:latest'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Уведомление в Slack при провале
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "❌ Trivy нашёл критические уязвимости!\nРепозиторий: ${{ github.repository }}\nАвтор: ${{ github.actor }}\nСсылка: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Уведомление в Telegram при провале
+        if: failure()
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="❌ Trivy нашёл критические уязвимости!%0AРепозиторий: ${{ github.repository }}%0AАвтор: ${{ github.actor }}%0AСсылка: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+  semgrep:
+    name: Semgrep - статический анализ кода
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout репозитория
+        uses: actions/checkout@v4
+
+      - name: Запуск Semgrep
+        uses: returntocorp/semgrep-action@v2
+        with:
+          config: p/owasp-top-ten
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}  # для дашборда
+
+      - name: Уведомление в Slack при провале
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "❌ Semgrep нашёл уязвимости в коде!\nРепозиторий: ${{ github.repository }}\nАвтор: ${{ github.actor }}\nСсылка: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Уведомление в Telegram при провале
+        if: failure()
+        run: |
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="❌ Semgrep нашёл уязвимости в коде!%0AРепозиторий: ${{ github.repository }}%0AАвтор: ${{ github.actor }}%0AСсылка: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
